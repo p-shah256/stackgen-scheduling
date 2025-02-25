@@ -30,7 +30,7 @@ type RecommendationResult struct {
 
 type TimePoint struct {
 	Time    time.Time
-	UserID  string
+	Id  string
 	IsStart bool
 }
 

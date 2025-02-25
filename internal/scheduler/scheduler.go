@@ -6,13 +6,12 @@ import (
 	"time"
 )
 
-func FindOptimalMeetingSlot(event Event, allUsers []User) RecommendationResult {
+func FindOptimalMeetingSlot(event Event, allUsers []User) []RecommendationResult {
 	meetingDuration := time.Duration(event.DurationMins) * time.Minute
 
 	timePoints := []TimePoint{}
 
 	for _, user := range allUsers {
-
 		// get overlap
 		for _, timeSlot := range user.Avail {
 			for _, eventSlot := range event.PossibleSlots {
@@ -42,7 +41,6 @@ func FindOptimalMeetingSlot(event Event, allUsers []User) RecommendationResult {
 	intervals := []Interval{}
 	currentUsers := make(map[string]bool)
 	var lastTime time.Time
-
 	if len(timePoints) > 0 {
 		lastTime = timePoints[0].Time
 	}
@@ -63,7 +61,6 @@ func FindOptimalMeetingSlot(event Event, allUsers []User) RecommendationResult {
 			})
 		}
 
-		// Update current users
 		if tp.IsStart {
 			currentUsers[tp.Id] = true
 		} else {
@@ -74,60 +71,50 @@ func FindOptimalMeetingSlot(event Event, allUsers []User) RecommendationResult {
 			lastTime = tp.Time
 		}
 	}
+	slog.Debug("INTERVALS::", "intervals", intervals)
 
-	candidates := []Interval{}
 
+	recommendationResults := []RecommendationResult{}
 	for _, interval := range intervals {
 		duration := interval.End.Sub(interval.Start)
 		if duration >= meetingDuration {
-			// Only use the required duration
 			endTime := interval.Start.Add(meetingDuration)
-			candidates = append(candidates, Interval{
+			candidateInterval := Interval{
 				Start:   interval.Start,
 				End:     endTime,
 				UserIDs: interval.UserIDs,
+			}
+
+			availableUsers := []User{}
+			unavailableUsers := []User{}
+
+			for _, user := range allUsers {
+				if candidateInterval.UserIDs[user.ID] {
+					availableUsers = append(availableUsers, user)
+				} else {
+					unavailableUsers = append(unavailableUsers, user)
+				}
+			}
+
+			participationRate := float64(len(availableUsers)) / float64(len(allUsers))
+
+			recommendationResults = append(recommendationResults, RecommendationResult{
+				Slot: TimeSlot{
+					Start: candidateInterval.Start,
+					End:   candidateInterval.End,
+				},
+				AvailableUsers:    availableUsers,
+				UnavailableUsers:  unavailableUsers,
+				ParticipationRate: participationRate,
 			})
 		}
 	}
 
-	var bestInterval Interval
-	maxUsers := -1
+	sort.Slice(recommendationResults, func(i, j int) bool {
+		return recommendationResults[i].ParticipationRate > recommendationResults[j].ParticipationRate
+	})
 
-	for _, candidate := range candidates {
-		userCount := len(candidate.UserIDs)
-		if userCount > maxUsers {
-			maxUsers = userCount
-			bestInterval = candidate
-		}
-	}
-
-	if maxUsers == -1 {
-		return RecommendationResult{}
-	}
-
-	// Prepare the result
-	availableUsers := []User{}
-	unavailableUsers := []User{}
-
-	for _, user := range allUsers {
-		if bestInterval.UserIDs[user.ID] {
-			availableUsers = append(availableUsers, user)
-		} else {
-			unavailableUsers = append(unavailableUsers, user)
-		}
-	}
-
-	participationRate := float64(len(availableUsers)) / float64(len(allUsers))
-
-	return RecommendationResult{
-		Slot: TimeSlot{
-			Start: bestInterval.Start,
-			End:   bestInterval.End,
-		},
-		AvailableUsers:    availableUsers,
-		UnavailableUsers:  unavailableUsers,
-		ParticipationRate: participationRate,
-	}
+	return recommendationResults
 }
 
 func min(a, b time.Time) time.Time {
