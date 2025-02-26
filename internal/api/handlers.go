@@ -42,22 +42,21 @@ func deleteEvntId(w http.ResponseWriter, r *http.Request) {
 	echoParams(w, r)
 }
 
+
+
+
+
 func getEvntRecId(w http.ResponseWriter, r *http.Request) {
 	echoParams(w, r)
 }
-
-
-
 
 func getAllUsers(w http.ResponseWriter, r *http.Request) {
 	echoParams(w, r)
 }
 
-
 func getUserId(w http.ResponseWriter, r *http.Request) {
 	echoParams(w, r)
 }
-
 
 func createUser(w http.ResponseWriter, r *http.Request) {
 	echoParams(w, r)
@@ -70,6 +69,3 @@ func updateUserId(w http.ResponseWriter, r *http.Request) {
 func rmUserId(w http.ResponseWriter, r *http.Request) {
 	echoParams(w, r)
 }
-
-
-
