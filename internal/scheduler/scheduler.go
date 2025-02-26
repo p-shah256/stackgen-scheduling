@@ -19,7 +19,7 @@ type Interval struct {
 	UserIDs map[string]bool
 }
 
-func FindOptimalMeetingSlot(event types.Event, userAvails []types.UsrAvail) []types.Rec {
+func FindOptimalMeetingSlot(event types.Event, userAvails []types.UsrAvailDate) []types.Rec {
 	meetingDuration := time.Duration(event.DurationMins) * time.Minute
 
 	timePoints := []TimePoint{}
@@ -85,7 +85,7 @@ func FindOptimalMeetingSlot(event types.Event, userAvails []types.UsrAvail) []ty
 	slog.Debug("INTERVALS::", "intervals", intervals)
 
 	recommendationResults := []types.Rec{}
-	userMap := make(map[string]types.UsrAvail)
+	userMap := make(map[string]types.UsrAvailDate)
 	for _, avail := range userAvails {
 		userMap[avail.UserID] = avail
 	}

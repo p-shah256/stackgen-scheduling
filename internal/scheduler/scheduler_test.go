@@ -15,7 +15,7 @@ func TestHappyPath_AllUsersAvailable(t *testing.T) {
 	slog.SetDefault(logger)
 
 	event := types.Event{
-		ID:           "1",
+		EventId:           "1",
 		Title:        "Team Meeting",
 		DurationMins: 60,
 		PossibleSlots: []types.TimeSlot{
@@ -30,7 +30,7 @@ func TestHappyPath_AllUsersAvailable(t *testing.T) {
 		},
 	}
 
-	usersAvailability := []types.UsrAvail{
+	usersAvailability := []types.UsrAvailDate{
 		{
 			UserID: "1",
 			Date:   time.Date(2025, 3, 1, 0, 0, 0, 0, time.UTC),
@@ -72,7 +72,7 @@ func TestHappyPath_AllUsersAvailable(t *testing.T) {
 
 func TestEdgeCase_NoCommonSlot(t *testing.T) {
 	event := types.Event{
-		ID:           "2",
+		EventId:           "2",
 		Title:        "Budget Review",
 		DurationMins: 60,
 		PossibleSlots: []types.TimeSlot{
@@ -83,7 +83,7 @@ func TestEdgeCase_NoCommonSlot(t *testing.T) {
 		},
 	}
 
-	usersAvailability := []types.UsrAvail{
+	usersAvailability := []types.UsrAvailDate{
 		{
 			UserID: "1",
 			Date:   time.Date(2025, 3, 5, 0, 0, 0, 0, time.UTC),

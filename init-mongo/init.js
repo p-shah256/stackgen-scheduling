@@ -18,4 +18,4 @@ db.createCollection('availability');
 // Create indexes
 db.events.createIndex({ "eventId": 1 }, { unique: true });
 db.users.createIndex({ "userId": 1 }, { unique: true });
-db.availability.createIndex({ "userId": 1, "eventId": 1 });
+db.availability.createIndex({ "userId": 1, "date": 1 }, { unique: true });

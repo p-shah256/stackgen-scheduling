@@ -9,23 +9,23 @@ type TimeSlot struct {
 
 type User struct {
 	UserID   string `json:"userId" bson:"userId"`
-	Name     string `json:"name" bson:"name"`
 	Timezone string `json:"timezone" bson:"timezone"`
 }
 
 // separated availability from user for better querying
-type UsrAvail struct {
+type UsrAvailDate struct {
 	UserID string     `json:"userId" bson:"userId"`
 	Date   time.Time  `json:"date" bson:"date"` // YYYY-MM-DD format
 	Slots  []TimeSlot `json:"slots" bson:"slots"`
 }
 
 type Event struct {
-	ID            string     `json:"id" bson:"_id"`
+	EventId       string     `json:"eventId" bson:"eventId"`
 	Title         string     `json:"title" bson:"title"`
 	PossibleSlots []TimeSlot `json:"possibleSlots" bson:"possibleSlots"`
 	DurationMins  int        `json:"durationMins" bson:"durationMins"`
 	Participants  []string   `json:"participantIds" bson:"participantIds"`
+	Date          time.Time  `json:"date" bson:"date"` // YYYY-MM-DD format
 }
 
 type Rec struct {
