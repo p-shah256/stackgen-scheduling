@@ -2,33 +2,47 @@ package db
 
 import (
 	"context"
+	"log/slog"
+	"time"
+
 	"os"
 
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/mongo/readpref"
 )
 
-var (
-	client *mongo.Client
-	db     *mongo.Database
-)
+var Client *mongo.Client
+var Database *mongo.Database
 
 func Connect(ctx context.Context) error {
 	uri := os.Getenv("MONGO_URI")
-	clientOptions := options.Client().ApplyURI(uri)
-	c, err := mongo.Connect(ctx, clientOptions)
+	if uri == "" {
+		uri = "mongodb://admin:password@localhost:27017/events_app?authSource=admin"
+	}
+
+	clientOptions := options.Client().ApplyURI(uri).SetConnectTimeout(10 * time.Second)
+
+	client, err := mongo.Connect(ctx, clientOptions)
 	if err != nil {
 		return err
 	}
-	client = c
-	db = client.Database(os.Getenv("MONGO_DB"))
+
+	err = client.Ping(ctx, readpref.Primary())
+	if err != nil {
+		return err
+	}
+
+	Client = client
+	Database = client.Database("events_app")
+
+	slog.Info("Database sucessfully connected")
 	return nil
 }
 
-func GetCollection(name string) *mongo.Collection {
-	return db.Collection(name)
-}
-
-func Close(ctx context.Context) error {
-	return client.Disconnect(ctx)
+func Disconnect(ctx context.Context) error {
+	if Client != nil {
+		return Client.Disconnect(ctx)
+	}
+	return nil
 }

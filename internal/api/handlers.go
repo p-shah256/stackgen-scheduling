@@ -42,10 +42,6 @@ func deleteEvntId(w http.ResponseWriter, r *http.Request) {
 	echoParams(w, r)
 }
 
-
-
-
-
 func getEvntRecId(w http.ResponseWriter, r *http.Request) {
 	echoParams(w, r)
 }
