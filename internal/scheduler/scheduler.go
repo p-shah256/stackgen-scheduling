@@ -9,47 +9,36 @@ import (
 
 type TimePoint struct {
 	Time    time.Time
-	Id      int
+	UserID  string
 	IsStart bool
 }
 
 type Interval struct {
 	Start   time.Time
 	End     time.Time
-	UserIDs map[int]bool
+	UserIDs map[string]bool
 }
 
-func FindOptimalMeetingSlot(event types.Event, allUsers []types.User) []types.Rec {
+func FindOptimalMeetingSlot(event types.Event, userAvails []types.UsrAvail) []types.Rec {
 	meetingDuration := time.Duration(event.DurationMins) * time.Minute
 
 	timePoints := []TimePoint{}
 
-	for _, user := range allUsers {
-		// get overlap
-		for _, dailySlots := range user.Avail {
-			for _, timeSlot := range dailySlots.Slots {
-				for _, eventDailySlots := range event.PossibleSlots {
-					eventDate := eventDailySlots.Date
+	for _, userAvail := range userAvails {
+		for _, timeSlot := range userAvail.Slots {
 
-					// NOTE: this would update if we move to the other struct
-					if !dailySlots.Date.Equal(eventDate) {
-						continue
-					}
+			for _, eventSlot := range event.PossibleSlots {
+				start := max(timeSlot.Start, eventSlot.Start)
+				end := min(timeSlot.End, eventSlot.End)
 
-					for _, eventSlot := range eventDailySlots.Slots {
-						start := max(timeSlot.Start, eventSlot.Start)
-						end := min(timeSlot.End, eventSlot.End)
-
-						if start.After(end) || start.Equal(end) { // no overlap
-							continue
-						}
-
-						timePoints = append(timePoints,
-							TimePoint{Time: start, Id: user.ID, IsStart: true},
-							TimePoint{Time: end, Id: user.ID, IsStart: false},
-						)
-					}
+				if start.After(end) || start.Equal(end) {
+					continue
 				}
+
+				timePoints = append(timePoints,
+					TimePoint{Time: start, UserID: userAvail.UserID, IsStart: true},
+					TimePoint{Time: end, UserID: userAvail.UserID, IsStart: false},
+				)
 			}
 		}
 	}
@@ -63,17 +52,15 @@ func FindOptimalMeetingSlot(event types.Event, allUsers []types.User) []types.Re
 	slog.Debug("sorted timepoints", "timepoints", timePoints)
 
 	intervals := []Interval{}
-	currentUsers := make(map[int]bool)
+	currentUsers := make(map[string]bool)
 	var lastTime time.Time
 	if len(timePoints) > 0 {
 		lastTime = timePoints[0].Time
 	}
 
 	for i, tp := range timePoints {
-		// interval if time has advanced
 		if !tp.Time.Equal(lastTime) && len(currentUsers) > 0 {
-			// Deep copy the current users
-			users := make(map[int]bool)
+			users := make(map[string]bool)
 			for id := range currentUsers {
 				users[id] = true
 			}
@@ -86,9 +73,9 @@ func FindOptimalMeetingSlot(event types.Event, allUsers []types.User) []types.Re
 		}
 
 		if tp.IsStart {
-			currentUsers[tp.Id] = true
+			currentUsers[tp.UserID] = true
 		} else {
-			delete(currentUsers, tp.Id)
+			delete(currentUsers, tp.UserID)
 		}
 
 		if i == len(timePoints)-1 || !tp.Time.Equal(timePoints[i+1].Time) {
@@ -98,6 +85,15 @@ func FindOptimalMeetingSlot(event types.Event, allUsers []types.User) []types.Re
 	slog.Debug("INTERVALS::", "intervals", intervals)
 
 	recommendationResults := []types.Rec{}
+	userMap := make(map[string]types.UsrAvail)
+	for _, avail := range userAvails {
+		userMap[avail.UserID] = avail
+	}
+	allUserIDs := make([]string, 0, len(userMap))
+	for userID := range userMap {
+		allUserIDs = append(allUserIDs, userID)
+	}
+
 	for _, interval := range intervals {
 		duration := interval.End.Sub(interval.Start)
 		if duration >= meetingDuration {
@@ -108,14 +104,14 @@ func FindOptimalMeetingSlot(event types.Event, allUsers []types.User) []types.Re
 				UserIDs: interval.UserIDs,
 			}
 
-			availableUserIDs := []int{}
-			unavailableUserIDs := []int{}
+			availableUserIDs := []string{}
+			unavailableUserIDs := []string{}
 
-			for _, user := range allUsers {
-				if candidateInterval.UserIDs[user.ID] {
-					availableUserIDs = append(availableUserIDs, user.ID)
+			for _, userID := range allUserIDs {
+				if candidateInterval.UserIDs[userID] {
+					availableUserIDs = append(availableUserIDs, userID)
 				} else {
-					unavailableUserIDs = append(unavailableUserIDs, user.ID)
+					unavailableUserIDs = append(unavailableUserIDs, userID)
 				}
 			}
 
@@ -127,7 +123,7 @@ func FindOptimalMeetingSlot(event types.Event, allUsers []types.User) []types.Re
 				Date:               interval.Start.Truncate(24 * time.Hour),
 				AvailableUserIDs:   availableUserIDs,
 				UnavailableUserIDs: unavailableUserIDs,
-				ParticipationRate:  float64(len(availableUserIDs)) / float64(len(allUsers)),
+				ParticipationRate:  float64(len(availableUserIDs)) / float64(len(allUserIDs)),
 			})
 		}
 	}
