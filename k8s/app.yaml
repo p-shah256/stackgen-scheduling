@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: meeting-scheduler
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: meeting-scheduler
+  template:
+    metadata:
+      labels:
+        app: meeting-scheduler
+    spec:
+      containers:
+      - name: app
+        image: meeting-scheduler:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8082
+        env:
+        - name: MONGO_URI
+          value: "mongodb://mongodb:27017"
+        - name: DB_NAME
+          value: "meetingScheduler"
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8082
+          initialDelaySeconds: 10
+          periodSeconds: 30
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: meeting-scheduler
+spec:
+  selector:
+    app: meeting-scheduler
+  ports:
+  - port: 80
+    targetPort: 8082
+  type: LoadBalancer

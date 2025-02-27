@@ -150,7 +150,6 @@ func TestMeetingSchedulerIntegration(t *testing.T) {
 	})
 }
 
-// Simple helper function for creating JSON requests
 func createJSONRequest(method, url string, data interface{}) *http.Request {
 	jsonData, _ := json.Marshal(data)
 	req, _ := http.NewRequest(method, url, bytes.NewBuffer(jsonData))
