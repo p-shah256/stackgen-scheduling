@@ -16,8 +16,8 @@ func findOptimalSlots(event Event) []SlotRecommendation {
 	return []SlotRecommendation{
 		{
 			Slot: TimeSlot{
-				Start_t: time.Now().Add(24 * time.Hour),
-				End_t:   time.Now().Add(25 * time.Hour),
+				Start_UTC: time.Now().Add(24 * time.Hour),
+				End_UTC:   time.Now().Add(25 * time.Hour),
 			},
 			AvailableUsers:   []string{"user1", "user2"},
 			UnavailableUsers: []string{"user3"},
@@ -86,7 +86,7 @@ func handleEvent(w http.ResponseWriter, r *http.Request) {
 		statusCode = http.StatusOK
 	}
 
-	data := map[string]string{"id": id}
+	data := event
 	sendResponse(w, statusCode, true, message, data)
 }
 
@@ -153,12 +153,6 @@ func handleUserAvailability(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	userAvail.UserID = userID
-
-	for i := range userAvail.Slots {
-		if userAvail.Slots[i].TimeZone == "" {
-			userAvail.Slots[i].TimeZone = "UTC" // Default to UTC
-		}
-	}
 
 	// Find if user already exists and determine operation type
 	userExists := false
@@ -275,9 +269,8 @@ func getRecommendations(w http.ResponseWriter, r *http.Request) {
 	// Format times for display with timezone
 	for i := range recommendations {
 		slot := &recommendations[i].Slot
-		slot.StartStr = formatTimeForDisplay(slot.Start_t, timezone)
-		slot.EndStr = formatTimeForDisplay(slot.End_t, timezone)
-		slot.TimeZone = timezone
+		slot.StartStr = formatTimeForDisplay(slot.Start_UTC, timezone)
+		slot.EndStr = formatTimeForDisplay(slot.End_UTC, timezone)
 	}
 
 	sendResponse(w, http.StatusOK, true, "Recommendations retrieved successfully", recommendations)
