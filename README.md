@@ -91,7 +91,7 @@ Simple two-container Kubernetes deployment:
 ## Local Development
 
 ```bash
-docker-compose up
+docker-compose up --build -d
 ```
 
 ## Cloud Deployment
