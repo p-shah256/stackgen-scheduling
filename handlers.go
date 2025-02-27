@@ -12,19 +12,6 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-func findOptimalSlots(event Event) []SlotRecommendation {
-	return []SlotRecommendation{
-		{
-			Slot: TimeSlot{
-				Start_UTC: time.Now().Add(24 * time.Hour),
-				End_UTC:   time.Now().Add(25 * time.Hour),
-			},
-			AvailableUsers:   []string{"user1", "user2"},
-			UnavailableUsers: []string{"user3"},
-		},
-	}
-}
-
 func sendResponse(w http.ResponseWriter, statusCode int, success bool, message string, data interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
@@ -198,7 +185,7 @@ func handleUserAvailability(w http.ResponseWriter, r *http.Request) {
 			statusCode = http.StatusCreated
 		}
 	}
-	sendResponse(w, statusCode, true, message, nil)
+	sendResponse(w, statusCode, true, message, userAvail)
 }
 
 func deleteUserAvailability(w http.ResponseWriter, r *http.Request) {
@@ -266,12 +253,9 @@ func getRecommendations(w http.ResponseWriter, r *http.Request) {
 
 	recommendations := findOptimalSlots(event)
 
-	// Format times for display with timezone
-	for i := range recommendations {
-		slot := &recommendations[i].Slot
+		slot := &recommendations[0].Slot
 		slot.StartStr = formatTimeForDisplay(slot.Start_UTC, timezone)
 		slot.EndStr = formatTimeForDisplay(slot.End_UTC, timezone)
-	}
 
-	sendResponse(w, http.StatusOK, true, "Recommendations retrieved successfully", recommendations)
+	sendResponse(w, http.StatusOK, true, "Recommendations retrieved successfully", recommendations[0])
 }
