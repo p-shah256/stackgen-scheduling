@@ -30,14 +30,29 @@ func healthCheck(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	
 	err := client.Ping(ctx, nil)
-	if err != nil {
-		w.WriteHeader(http.StatusServiceUnavailable)
-		json.NewEncoder(w).Encode(map[string]string{"status": "error", "message": "Database connection failed"})
-		return
+	
+	response := Response{
+		Success: err == nil,
+		Message: "Service health status",
+		Data: map[string]string{
+			"status": "healthy",
+			"db_connection": "connected",
+		},
 	}
 	
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+	statusCode := http.StatusOK
+	if err != nil {
+		statusCode = http.StatusServiceUnavailable
+		response.Success = false
+		response.Data = map[string]string{
+			"status": "unhealthy",
+			"db_connection": "disconnected",
+		}
+	}
+	
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(statusCode)
+	json.NewEncoder(w).Encode(response)
 }
 
 func main() {
@@ -46,6 +61,7 @@ func main() {
 
 	mongoURI := getEnv("MONGO_URI", "mongodb://localhost:27017")
 	dbName := getEnv("DB_NAME", "meetingScheduler")
+	port := getEnv("PORT", "8082")
 	
 	clientOptions := options.Client().ApplyURI(mongoURI)
 	var err error
@@ -85,6 +101,6 @@ func main() {
 	// Recommendation endpoint
 	router.HandleFunc("/events/{id}/recommendations", getRecommendations).Methods("GET")
 
-	fmt.Println("Server started on :8082")
-	log.Fatal(http.ListenAndServe(":8082", router))
+	fmt.Println("Server started on port", port)
+	log.Fatal(http.ListenAndServe(":"+port, router))
 }

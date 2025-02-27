@@ -12,9 +12,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-// findOptimalSlots placeholder that will be filled later with actual logic
 func findOptimalSlots(event Event) []SlotRecommendation {
-	// Placeholder implementation - to be filled in later as mentioned
 	return []SlotRecommendation{
 		{
 			Slot: TimeSlot{
@@ -27,6 +25,19 @@ func findOptimalSlots(event Event) []SlotRecommendation {
 	}
 }
 
+func sendResponse(w http.ResponseWriter, statusCode int, success bool, message string, data interface{}) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(statusCode)
+
+	response := Response{
+		Success: success,
+		Message: message,
+		Data:    data,
+	}
+
+	json.NewEncoder(w).Encode(response)
+}
+
 // handleEvent handles both creation (POST) and updates (PUT) of events
 func handleEvent(w http.ResponseWriter, r *http.Request) {
 	params := mux.Vars(r)
@@ -34,13 +45,11 @@ func handleEvent(w http.ResponseWriter, r *http.Request) {
 
 	var event Event
 	if err := json.NewDecoder(r.Body).Decode(&event); err != nil {
-		http.Error(w, "Invalid request format: "+err.Error(), http.StatusBadRequest)
+		sendResponse(w, http.StatusBadRequest, false, "Invalid request format: "+err.Error(), nil)
 		return
 	}
-
 	event.ID = id
-	
-	// Always initialize UserSlots to prevent nil array issues
+
 	if event.UserSlots == nil {
 		event.UserSlots = []UserAvailability{}
 	}
@@ -55,18 +64,18 @@ func handleEvent(w http.ResponseWriter, r *http.Request) {
 
 	// POST = create (fail if exists), PUT = update (fail if not exists)
 	if r.Method == "POST" && exists {
-		http.Error(w, "Event already exists", http.StatusConflict)
+		sendResponse(w, http.StatusConflict, false, "Event already exists", nil)
 		return
 	} else if r.Method == "PUT" && !exists {
-		http.Error(w, "Event not found", http.StatusNotFound)
+		sendResponse(w, http.StatusNotFound, false, "Event not found", nil)
 		return
 	}
 
 	// Simple upsert operation
 	opts := options.Update().SetUpsert(true)
-	result, err := eventsCollection.UpdateOne(ctx, bson.M{"_id": id}, bson.M{"$set": event}, opts)
+	_, err = eventsCollection.UpdateOne(ctx, bson.M{"_id": id}, bson.M{"$set": event}, opts)
 	if err != nil {
-		http.Error(w, "Database error: "+err.Error(), http.StatusInternalServerError)
+		sendResponse(w, http.StatusInternalServerError, false, "Database error: "+err.Error(), nil)
 		return
 	}
 
@@ -77,64 +86,45 @@ func handleEvent(w http.ResponseWriter, r *http.Request) {
 		statusCode = http.StatusOK
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(statusCode)
-	json.NewEncoder(w).Encode(map[string]interface{}{
-		"status":  "success",
-		"message": message,
-		"id":      id,
-		"matched": result.MatchedCount,
-		"upserted": result.UpsertedCount,
-	})
+	data := map[string]string{"id": id}
+	sendResponse(w, statusCode, true, message, data)
 }
 
 // getEvent retrieves an event by ID
 func getEvent(w http.ResponseWriter, r *http.Request) {
 	params := mux.Vars(r)
 	id := params["id"]
-
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-
 	var event Event
 	err := eventsCollection.FindOne(ctx, bson.M{"_id": id}).Decode(&event)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
-			http.Error(w, "Event not found", http.StatusNotFound)
+			sendResponse(w, http.StatusNotFound, false, "Event not found", nil)
 		} else {
-			http.Error(w, "Database error: "+err.Error(), http.StatusInternalServerError)
+			sendResponse(w, http.StatusInternalServerError, false, "Database error: "+err.Error(), nil)
 		}
 		return
 	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(event)
+	sendResponse(w, http.StatusOK, true, "Event retrieved successfully", event)
 }
 
 // deleteEvent removes an event by ID
 func deleteEvent(w http.ResponseWriter, r *http.Request) {
 	params := mux.Vars(r)
 	id := params["id"]
-
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-
 	result, err := eventsCollection.DeleteOne(ctx, bson.M{"_id": id})
 	if err != nil {
-		http.Error(w, "Database error: "+err.Error(), http.StatusInternalServerError)
+		sendResponse(w, http.StatusInternalServerError, false, "Database error: "+err.Error(), nil)
 		return
 	}
-
 	if result.DeletedCount == 0 {
-		http.Error(w, "Event not found", http.StatusNotFound)
+		sendResponse(w, http.StatusNotFound, false, "Event not found", nil)
 		return
 	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{
-		"status":  "success",
-		"message": "Event deleted successfully",
-	})
+	sendResponse(w, http.StatusOK, true, "Event deleted successfully", nil)
 }
 
 // handleUserAvailability adds or updates user availability for an event
@@ -143,7 +133,6 @@ func handleUserAvailability(w http.ResponseWriter, r *http.Request) {
 	id := params["id"]
 	userID := params["user_id"]
 
-	// First, get the entire event
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -151,20 +140,25 @@ func handleUserAvailability(w http.ResponseWriter, r *http.Request) {
 	err := eventsCollection.FindOne(ctx, bson.M{"_id": id}).Decode(&event)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
-			http.Error(w, "Event not found", http.StatusNotFound)
+			sendResponse(w, http.StatusNotFound, false, "Event not found", nil)
 		} else {
-			http.Error(w, "Database error: "+err.Error(), http.StatusInternalServerError)
+			sendResponse(w, http.StatusInternalServerError, false, "Database error: "+err.Error(), nil)
 		}
 		return
 	}
 
-	// Parse the new user availability
 	var userAvail UserAvailability
 	if err := json.NewDecoder(r.Body).Decode(&userAvail); err != nil {
-		http.Error(w, "Invalid request format: "+err.Error(), http.StatusBadRequest)
+		sendResponse(w, http.StatusBadRequest, false, "Invalid request format: "+err.Error(), nil)
 		return
 	}
 	userAvail.UserID = userID
+
+	for i := range userAvail.Slots {
+		if userAvail.Slots[i].TimeZone == "" {
+			userAvail.Slots[i].TimeZone = "UTC" // Default to UTC
+		}
+	}
 
 	// Find if user already exists and determine operation type
 	userExists := false
@@ -173,7 +167,7 @@ func handleUserAvailability(w http.ResponseWriter, r *http.Request) {
 			userExists = true
 			// POST = create (fail if exists), PUT = update
 			if r.Method == "POST" {
-				http.Error(w, "User availability already exists", http.StatusConflict)
+				sendResponse(w, http.StatusConflict, false, "User availability already exists", nil)
 				return
 			}
 			// Update existing entry
@@ -183,7 +177,7 @@ func handleUserAvailability(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if r.Method == "PUT" && !userExists {
-		http.Error(w, "User availability not found", http.StatusNotFound)
+		sendResponse(w, http.StatusNotFound, false, "User availability not found", nil)
 		return
 	}
 
@@ -196,10 +190,9 @@ func handleUserAvailability(w http.ResponseWriter, r *http.Request) {
 		event.UserSlots = append(event.UserSlots, userAvail)
 	}
 
-	// Save the full updated event
 	_, err = eventsCollection.ReplaceOne(ctx, bson.M{"_id": id}, event)
 	if err != nil {
-		http.Error(w, "Database error: "+err.Error(), http.StatusInternalServerError)
+		sendResponse(w, http.StatusInternalServerError, false, "Database error: "+err.Error(), nil)
 		return
 	}
 
@@ -211,37 +204,26 @@ func handleUserAvailability(w http.ResponseWriter, r *http.Request) {
 			statusCode = http.StatusCreated
 		}
 	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(statusCode)
-	json.NewEncoder(w).Encode(map[string]string{
-		"status":  "success",
-		"message": message,
-	})
+	sendResponse(w, statusCode, true, message, nil)
 }
 
-// deleteUserAvailability removes a user's availability from an event
 func deleteUserAvailability(w http.ResponseWriter, r *http.Request) {
 	params := mux.Vars(r)
 	id := params["id"]
 	userID := params["user_id"]
-
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-
-	// First, get the entire event
 	var event Event
 	err := eventsCollection.FindOne(ctx, bson.M{"_id": id}).Decode(&event)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
-			http.Error(w, "Event not found", http.StatusNotFound)
+			sendResponse(w, http.StatusNotFound, false, "Event not found", nil)
 		} else {
-			http.Error(w, "Database error: "+err.Error(), http.StatusInternalServerError)
+			sendResponse(w, http.StatusInternalServerError, false, "Database error: "+err.Error(), nil)
 		}
 		return
 	}
 
-	// Find and remove the user
 	found := false
 	newUserSlots := []UserAvailability{}
 	for _, ua := range event.UserSlots {
@@ -251,31 +233,28 @@ func deleteUserAvailability(w http.ResponseWriter, r *http.Request) {
 			found = true
 		}
 	}
-
 	if !found {
-		http.Error(w, "User availability not found", http.StatusNotFound)
+		sendResponse(w, http.StatusNotFound, false, "User availability not found", nil)
 		return
 	}
 
-	// Update the event with the user removed
 	event.UserSlots = newUserSlots
 	_, err = eventsCollection.ReplaceOne(ctx, bson.M{"_id": id}, event)
 	if err != nil {
-		http.Error(w, "Database error: "+err.Error(), http.StatusInternalServerError)
+		sendResponse(w, http.StatusInternalServerError, false, "Database error: "+err.Error(), nil)
 		return
 	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{
-		"status":  "success",
-		"message": "User availability deleted",
-	})
+	sendResponse(w, http.StatusOK, true, "User availability deleted", nil)
 }
 
-// getRecommendations returns recommended time slots for an event
 func getRecommendations(w http.ResponseWriter, r *http.Request) {
 	params := mux.Vars(r)
 	id := params["id"]
+	timezone := r.URL.Query().Get("timezone")
+
+	if timezone == "" {
+		timezone = "UTC" // Default timezone
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -284,22 +263,22 @@ func getRecommendations(w http.ResponseWriter, r *http.Request) {
 	err := eventsCollection.FindOne(ctx, bson.M{"_id": id}).Decode(&event)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
-			http.Error(w, "Event not found", http.StatusNotFound)
+			sendResponse(w, http.StatusNotFound, false, "Event not found", nil)
 		} else {
-			http.Error(w, "Database error: "+err.Error(), http.StatusInternalServerError)
+			sendResponse(w, http.StatusInternalServerError, false, "Database error: "+err.Error(), nil)
 		}
 		return
 	}
 
 	recommendations := findOptimalSlots(event)
 
-	// Format times for display
+	// Format times for display with timezone
 	for i := range recommendations {
 		slot := &recommendations[i].Slot
-		slot.StartStr = formatTimeForDisplay(slot.Start_t)
-		slot.EndStr = formatTimeForDisplay(slot.End_t)
+		slot.StartStr = formatTimeForDisplay(slot.Start_t, timezone)
+		slot.EndStr = formatTimeForDisplay(slot.End_t, timezone)
+		slot.TimeZone = timezone
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(recommendations)
+	sendResponse(w, http.StatusOK, true, "Recommendations retrieved successfully", recommendations)
 }
